@@ -1,0 +1,14 @@
+# For more information on this file, see https://gitlab.com/top-software/eastwood
+
+compiler: cocl-itasks
+libraries:
+  - StdEnv
+  - Platform
+  - iTasks
+  - TCPIP
+  - Gast
+  - GraphCopy
+  - ABCInterpreter
+# When you're adding subdirectories to your project, make sure to list them in `paths` to ensure that Eastwood can
+# find them.
+paths: []
