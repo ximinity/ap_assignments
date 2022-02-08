@@ -11,4 +11,4 @@ libraries:
   - ABCInterpreter
 # When you're adding subdirectories to your project, make sure to list them in `paths` to ensure that Eastwood can
 # find them.
-paths: []
+paths: [ "assignments/clean/1", "assignments/clean/test" ]
