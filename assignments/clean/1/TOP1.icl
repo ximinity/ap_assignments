@@ -24,8 +24,6 @@ derive class iTask Student, BaMa  // unlocks the iTask machinery for these new d
 instance ==       BaMa where (==) p1 p2 = gEq{|*|} p1 p2
 instance toString BaMa where toString p = hd (gText{|*|} AsSingleLine (?Just p))
 
-Start w = doTasks task w
-
 task :: Task [Int]
 task = enterInformation []
 
@@ -57,6 +55,36 @@ students =
 	 }
 	]
 
+// 1
+// Start w = doTasks enter_student w
+
+// 2.
+// Start w = doTasks enter_students w
+
+// 3.
+// Start w = doTasks (update_student (hd students)) w
+
+// 4.
+// Start w = doTasks (select_student students) w
+
+// 5.
+// Start w = doTasks (select_student_by_name students) w
+
+// 6.
+// Start w = doTasks (select_year_sorted students) w
+
+// 7.
+// Start w = doTasks (select_same_study 2021 (hd students) students) w
+
+// 8.
+// Start w = doTasks (select_same_study_from_population students) w
+
+// 9.
+// Start w = doTasks (update_studentnumber (hd students)) w
+
+// 10.
+Start w = doTasks (fix students) w
+
 name :: Student -> String
 name {Student | name} = name
 
@@ -67,35 +95,82 @@ snum :: Student -> String
 snum {Student | snum} = snum
 
 enter_student :: Task Student
-enter_student = abort "enter_student not yet implemented"
+enter_student = enterInformation []
 
 enter_students :: Task [Student]
-enter_students = abort "enter_students not yet implemented"
+enter_students = enterInformation []
 
 update_student :: Student -> Task Student
-update_student student = abort "update_student not yet implemented"
+update_student student = updateInformation [] student
 
 select_student :: [Student] -> Task Student
-select_student students = abort "select_student not yet implemented"
+select_student students = enterChoice [] students
 
 select_student_by_name :: [Student] -> Task Student
-select_student_by_name students = abort "select_student_by_name not yet implemented"
+select_student_by_name students = enterChoice [ChooseFromCheckGroup (\p = name p)] students
 
 select_year_sorted :: [Student] -> Task Year
-select_year_sorted students = abort "select_year_sorted not yet implemented"
+select_year_sorted students = enterChoice [ChooseFromGrid id] (sort years)
+	where years = (removeDup o (map fst) o flatten o (map (\s = s.Student.regs))) students
 
 select_same_study :: Year Student [Student] -> Task [Student]
 select_same_study year student students
- = abort "select_same_study not yet implemented"
+ = Title title @>> viewInformation [] students1
+	where
+		studentsInYear = filter (\x = isInYear year x && snum x <> snum student) students
+		isInYear y s = isMember y (((map fst) o regs) s)
+		(title, students1)
+			= if (isMember year (((map fst) o regs) student))
+				(case studentsInYear of
+					[] -> ("No other students found in the same year", [])
+					ss -> ("Found the following students", ss)
+				)
+				("Student does not have a registration for the given year", [])
 
 select_same_study_from_population :: [Student] -> Task [Student]
 select_same_study_from_population students
- = abort "select_same_study_from_population not yet implemented"
+ = (select_student_by_name students
+		-&&-
+	select_year_sorted students
+   ) >>? (\(student, year) = select_same_study year student students)
+
+valid_studentnumber :: String -> Bool
+valid_studentnumber s = (valid_studentnumber1 o fromString) s
+	where
+		valid_studentnumber1 [] = False
+		valid_studentnumber1 ['s' : cs] = length cs == 4 && all isDigit cs
+		valid_studentnumber1 _ = False
 
 update_studentnumber :: Student -> Task Student
 update_studentnumber student
- = abort "update_studentnumber not yet implemented"
+ = (
+	 (
+		 Title "Update student number" @>>
+		 (Hint "Student number must start with an s followed by four digits, e.g. s1234" @>>
+		 enterInformation []
+	 )
+		-||
+	 (Title "Current information: " @>> viewInformation [] student)
+   )
+	>>* [OnAction ActionOk (ifValue valid_studentnumber return)])
+	>>- (\snum1 = Title "Updated information" @>> viewInformation [] { name = name student, snum = snum1, regs = regs student })
+
+unique_studentnumber :: String [Student] -> Bool
+unique_studentnumber num students = (foldr (\a b = if (snum a == num) (b + 1) b) 0 students) <= 1
 
 fix :: [Student] -> Task [Student]
-fix students
- = abort "fix not yet implemented"
+fix students = case (duplicate_snum_students students) of
+        [] -> Title "Fixed student list" @>> viewInformation [] students
+        xs -> Title "Update non-unique student numbers for: " @>>
+                        enterChoice [ChooseFromGrid (\(s, _) = s)] xs
+                                >>?
+                        (\(old_s, i) = update_studentnumber old_s
+                                >>?
+                        (\new_s = fix [new_s : (removeAt i students)] ))
+
+duplicate_snum_students :: [Student] -> [(Student, Int)]
+duplicate_snum_students students = [(s, i) \\ (s, i) <- indexed_students, d <- duplicate_student_numbers | s.Student.snum == d]
+        where
+			duplicate_student_numbers = removeDup [num \\ num <- snums | (length (filter ((==) num) snums)) > 1]
+            snums = map (\s = s.snum) students
+            indexed_students = zip2 students [0..]
